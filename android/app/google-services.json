@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "557396719050",
+    "project_id": "webrtctest-15ae8",
+    "storage_bucket": "webrtctest-15ae8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:557396719050:android:3275032a41f4158b460b33",
+        "android_client_info": {
+          "package_name": "com.ezil.web_rtc"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAjr2ppNMm2pxK1ATQoOBZ30QeAMqikL6M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:557396719050:android:a8448034d733ed6e460b33",
+        "android_client_info": {
+          "package_name": "com.ezriouil.web_rtc_test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAjr2ppNMm2pxK1ATQoOBZ30QeAMqikL6M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
