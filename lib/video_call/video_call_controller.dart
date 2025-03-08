@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:get/get.dart';
+import 'package:web_rtc/video_call/video_call_entity.dart';
 
 class VideoCallController extends GetxController{
 
@@ -16,19 +17,42 @@ class VideoCallController extends GetxController{
   };
 
   late RTCPeerConnection? peerConnection;
-  late MediaStream? localStream, remoteStream;
-  late final RxBool isLoading, isJoined;
-  late final Rx<RTCVideoRenderer?> localRenderer, remoteRenderer;
+
+  late MediaStream? localStream;
+  late MediaStream? remoteStream;
+
+  late final RxString currentRoomId;
+
+  late final RxBool isLoading;
+  late final RxBool isJoined;
+
+  late final RxBool isWantedToClose;
+  late final RxBool isMeTheCaller;
+
+  //late final RxBool isAlreadyCreated;
+
+  late final Rx<RTCVideoRenderer?> localRenderer;
+  late final Rx<RTCVideoRenderer?> remoteRenderer;
 
   @override
   void onInit() {
-    isLoading = true.obs;
-    isJoined = false.obs;
     peerConnection = null;
-    localStream = null;
-    remoteStream = null;
+
     localRenderer = RTCVideoRenderer().obs;
     remoteRenderer = RTCVideoRenderer().obs;
+
+    currentRoomId = "".obs;
+
+    localStream = null;
+    remoteStream = null;
+
+    isLoading = true.obs;
+    isJoined = false.obs;
+
+    isMeTheCaller = false.obs;
+
+    isWantedToClose = false.obs;
+
     super.onInit();
     init();
   }
@@ -38,16 +62,33 @@ class VideoCallController extends GetxController{
     await remoteRenderer.value!.initialize();
     await openUserMedia();
     isLoading.value = false;
-    isJoined.value = false;
+    await initPeerConnection();
+    skip();
   }
 
   Future<void> openUserMedia() async {
     try {
-      final MediaStream stream = await RTCFactoryNative.instance.navigator.mediaDevices.getUserMedia({'video': true, 'audio': true});
+      final MediaStream stream = await mediaDevices.getUserMedia({'video': true, 'audio': true});
       localRenderer.value!.srcObject = stream;
       localStream = stream;
       remoteRenderer.value!.srcObject = await createLocalMediaStream('key');
     } catch (_) {}
+  }
+
+  Future<void> initPeerConnection() async {
+
+    peerConnection = await createPeerConnection(_configuration);
+
+    localStream?.getTracks().forEach((track) {
+      peerConnection?.addTrack(track, localStream!);
+    });
+
+    peerConnection?.onTrack = (RTCTrackEvent event) {
+      event.streams[0].getTracks().forEach((track) {
+        localStream?.addTrack(track);
+      });
+    };
+
   }
 
   void registerPeerConnectionListeners() {
@@ -61,12 +102,12 @@ class VideoCallController extends GetxController{
           break;
         case RTCIceGatheringState.RTCIceGatheringStateGathering:
           print("============ ICE ============");
-          print("Ice Gathering State: Gathering");
+          print("Ice Gathering State: Gathering"); // CREATE 1  // JOIN 3
           print("========================");
           break;
         case RTCIceGatheringState.RTCIceGatheringStateComplete:
           print("============ ICE ============");
-          print("Ice Gathering State: Complete");
+          print("Ice Gathering State: Complete"); // CREATE 3  // JOIN 5
           print("========================");
           break;
       }
@@ -76,7 +117,7 @@ class VideoCallController extends GetxController{
       switch (state) {
         case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
           print("============ CONNECTION ============");
-          print("Connection State: Closed");
+          print("Connection State: Closed"); // CLOSE 1
           print("========================");
           break;
         case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
@@ -96,14 +137,13 @@ class VideoCallController extends GetxController{
           break;
         case RTCPeerConnectionState.RTCPeerConnectionStateConnecting:
           print("============ CONNECTION ============");
-          print("Connection State: Connecting");
+          print("Connection State: Connecting"); // JOIN 4
           print("========================");
           break;
         case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
           print("============ CONNECTION ============");
-          print("Connection State: Connected");
+          print("Connection State: Connected"); // JOIN 6
           print("========================");
-          isJoined.value = true;
           break;
       }
     };
@@ -112,17 +152,17 @@ class VideoCallController extends GetxController{
       switch (state) {
         case RTCSignalingState.RTCSignalingStateStable:
           print("============ SIGNAL ============");
-          print("Signaling State: Stable");
+          print("Signaling State: Stable"); // JOIN 2
           print("========================");
           break;
         case RTCSignalingState.RTCSignalingStateHaveLocalOffer:
           print("============ SIGNAL ============");
-          print("Signaling State: Have Local Offer");
+          print("Signaling State: Have Local Offer"); // CREATE 2
           print("========================");
           break;
         case RTCSignalingState.RTCSignalingStateHaveRemoteOffer:
           print("============ SIGNAL ============");
-          print("Signaling State: Have Remote Offer");
+          print("Signaling State: Have Remote Offer"); // JOIN 1
           print("========================");
           break;
         case RTCSignalingState.RTCSignalingStateHaveLocalPrAnswer:
@@ -137,8 +177,9 @@ class VideoCallController extends GetxController{
           break;
         case RTCSignalingState.RTCSignalingStateClosed:
           print("============ SIGNAL ============");
-          print("Signaling State: Closed");
+          print("Signaling State: Closed"); // CLOSE 2
           print("========================");
+          isJoined.value = false;
           break;
       }
     };
@@ -150,29 +191,28 @@ class VideoCallController extends GetxController{
 
   }
 
-  Future<void> createNewCall() async {
-    isJoined.value = false;
+  Future<void> createNewRoom() async {
+
+    final newDoc = FirebaseFirestore.instance.collection('ROOMS').doc();
+    currentRoomId.value = newDoc.id;
+
+    final VideoCallEntity videoCallEntity = VideoCallEntity(
+        id: newDoc.id,
+        callerId: 'MOHAMED-2003',
+        calleeId: 'EZRIOUIL-2003',
+        isAvailable: true,
+        offer: null,
+        answer: null,
+        callerCandidates: null,
+        calleeCandidates: null
+    );
+
     try {
 
-      final newDoc = FirebaseFirestore.instance.collection('CALLS').doc("10");
-      newDoc.set({
-        'id': newDoc.id,
-        'callerId': 'MOHAMED-2003',
-        'calleeId': 'EZRIOUIL-2003',
-        'isAvailable': true,
-        'offer': null,
-        'answer': null,
-        'callerCandidates': null,
-        'calleeCandidates': null
-      });
+      await newDoc.set(videoCallEntity.toJson());
+      isMeTheCaller.value = true;
 
-      peerConnection = await createPeerConnection(_configuration);
-
-      registerPeerConnectionListeners();
-
-      localStream?.getTracks().forEach((track) {
-        peerConnection?.addTrack(track, localStream!);
-      });
+     registerPeerConnectionListeners();
 
       peerConnection?.onIceCandidate = (RTCIceCandidate? candidate) async {
         if(candidate == null) return;
@@ -181,85 +221,23 @@ class VideoCallController extends GetxController{
 
       RTCSessionDescription offer = await peerConnection!.createOffer();
 
-      await peerConnection!.setLocalDescription(offer);
+      await peerConnection?.setLocalDescription(offer);
 
       await newDoc.update({ 'offer': offer.sdp });
 
-      peerConnection?.onTrack = (RTCTrackEvent event) {
-        event.streams[0].getTracks().forEach((track) {
-          localStream?.addTrack(track);
-        });
-      };
-
       newDoc.snapshots().listen((snapshot) async {
-        if (snapshot.exists && snapshot.data() != null && snapshot.data()?['answer'] != null && peerConnection?.getRemoteDescription() != null) {
-          final answer = RTCSessionDescription(snapshot.data()!['answer'], 'answer');
-          await peerConnection?.setRemoteDescription(answer);
-        }
-      });
+        if(snapshot.exists && snapshot.data() != null){
+          final VideoCallEntity videoCallEntity = VideoCallEntity.fromJson(snapshot.data()!);
 
-      newDoc.snapshots().listen((snapshot) {
-        if (snapshot.exists && snapshot.data() != null && snapshot.data()?['calleeCandidates'] != null) {
-          var calleeCandidates = snapshot.data()!['calleeCandidates'];
-          for (var item in calleeCandidates) {
-            peerConnection!.addCandidate(
-              RTCIceCandidate(
-                item['candidate'],
-                item['sdpMid'],
-                item['sdpMLineIndex'],
-              ),
-            );
+          if (videoCallEntity.answer != null && peerConnection?.getRemoteDescription() != null) {
+            final answer = RTCSessionDescription(videoCallEntity.answer, 'answer');
+            await peerConnection?.setRemoteDescription(answer);
+            if(isMeTheCaller.value) isJoined.value = true;
           }
-        }
-      });
 
-    } catch (e) {
-      print("=========");
-      print(e.toString());
-      print("=========");
-    }
-  }
-
-  Future<void> joinTheCall() async {
-    try {
-
-      final doc = FirebaseFirestore.instance.collection('CALLS').doc("10");
-
-      final callData = await doc.get();
-
-      if (callData.exists) {
-
-        peerConnection = await createPeerConnection(_configuration);
-
-        registerPeerConnectionListeners();
-
-        localStream?.getTracks().forEach((track) {
-          peerConnection?.addTrack(track, localStream!);
-        });
-
-        peerConnection?.onIceCandidate = (RTCIceCandidate? candidate) async {
-          if (candidate == null) return;
-          await doc.update({ 'calleeCandidates': FieldValue.arrayUnion([ candidate.toMap() ]) });
-        };
-
-        peerConnection?.onTrack = (RTCTrackEvent event) {
-          event.streams[0].getTracks().forEach((track) {
-            localStream?.addTrack(track);
-          });
-        };
-
-        await peerConnection?.setRemoteDescription(RTCSessionDescription(callData['offer'], 'offer'));
-
-        final answer = await peerConnection!.createAnswer();
-
-        await peerConnection!.setLocalDescription(answer);
-
-        await doc.update({ 'answer': answer.sdp });
-
-        doc.snapshots().listen((snapshot) {
-          if (snapshot.exists && snapshot.data() != null && snapshot.data()?['callerCandidates'] != null) {
-            var calleeCandidates = snapshot.data()!['callerCandidates'];
-            for (var item in calleeCandidates) {
+          if (videoCallEntity.calleeCandidates != null) {
+            List<Map<String, dynamic>> calleeCandidates = videoCallEntity.calleeCandidates!;
+            for (Map<String, dynamic> item in calleeCandidates) {
               peerConnection!.addCandidate(
                 RTCIceCandidate(
                   item['candidate'],
@@ -269,19 +247,116 @@ class VideoCallController extends GetxController{
               );
             }
           }
-        });
-      }
 
-    } catch (e) {
-      print("========");
-      print(e.toString());
-      print("========");
-    }
+        }
+        else {
+          if(!isWantedToClose.value) skip();
+          isJoined.value = false;
+        }
+      });
+
+    } catch (_) {}
   }
 
-  Future<void> hangUpTheCall() async {
+  Future<void> joinTheRoom() async {
     try {
-      isJoined.value = false;
+
+      final doc = FirebaseFirestore.instance.collection('ROOMS').doc(currentRoomId.value);
+      final callData = await doc.get();
+
+      if(!(callData.exists) && callData.data() == null) {
+        skip();
+        return;
+      }
+
+      await doc.update({ 'isAvailable': false });
+
+      final VideoCallEntity videoCallEntity = VideoCallEntity.fromJson(callData.data()!);
+
+      registerPeerConnectionListeners();
+
+      peerConnection?.onIceCandidate = (RTCIceCandidate? candidate) async {
+        if (candidate == null) return ;
+        await doc.update({ 'calleeCandidates': FieldValue.arrayUnion([ candidate.toMap() ]) });
+      };
+
+      await peerConnection?.setRemoteDescription(RTCSessionDescription(videoCallEntity.offer, 'offer'));
+
+      final answer = await peerConnection!.createAnswer();
+
+      await peerConnection!.setLocalDescription(answer);
+
+      await doc.update({ 'answer': answer.sdp });
+
+      doc.snapshots().listen((snapshot) async {
+        if(snapshot.exists && snapshot.data() != null){
+          final VideoCallEntity videoCallEntity = VideoCallEntity.fromJson(snapshot.data()!);
+          if (videoCallEntity.callerCandidates != null) {
+            List<Map<String, dynamic>> callerCandidates = videoCallEntity.callerCandidates!;
+            for (Map<String, dynamic> item in callerCandidates) {
+              peerConnection!.addCandidate(
+                RTCIceCandidate(
+                  item['candidate'],
+                  item['sdpMid'],
+                  item['sdpMLineIndex'],
+                ),
+              );
+            }
+            if(!isMeTheCaller.value) isJoined.value = true;
+          }
+        }
+        else {
+          if(!isWantedToClose.value) skip();
+          isJoined.value = false;
+        }
+      });
+
+    } catch (_) {}
+  }
+
+  Future<void> skip() async {
+
+    isJoined.value = false;
+    isMeTheCaller.value = false;
+
+    try{
+      if(currentRoomId.value != "") {
+        await FirebaseFirestore.instance.collection('ROOMS').doc(currentRoomId.value).delete();
+        currentRoomId.value = "";
+      }
+    }
+    catch (_) {}
+
+    await Future.delayed(Duration(milliseconds: 300));
+
+    try{
+
+      final QuerySnapshot<Map<String, dynamic>> roomAlreadyExist = await FirebaseFirestore.instance.collection('ROOMS').where('isAvailable', isEqualTo: true).limit(1).get();
+
+      if(roomAlreadyExist.size > 0){
+        final VideoCallEntity videoCallEntity = VideoCallEntity.fromJson(roomAlreadyExist.docs.first.data());
+        currentRoomId.value = videoCallEntity.id!;
+        joinTheRoom();
+      }
+      else {
+        await Future.delayed(Duration(milliseconds: 300));
+        createNewRoom();
+      }
+    }
+    catch (_) {}
+
+  }
+
+  Future<void> hangUpTheRoom() async {
+    try {
+
+      isWantedToClose.value = true;
+      if(!isJoined.value) isJoined.value = false;
+
+      if(currentRoomId.value != "") {
+        await FirebaseFirestore.instance.collection('ROOMS').doc(currentRoomId.value).delete();
+        currentRoomId.value = "";
+      }
 
       if (remoteStream != null) {
         for (final track in remoteStream!.getTracks()) { track.stop(); track.dispose(); }
@@ -293,8 +368,6 @@ class VideoCallController extends GetxController{
         peerConnection!.close();
         peerConnection = null;
       }
-
-      await FirebaseFirestore.instance.collection('CALLS').doc("10").delete();
 
       Get.back();
 

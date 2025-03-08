@@ -27,7 +27,10 @@ class MyApp extends StatelessWidget {
         primaryColor: Colors.teal,
         scaffoldBackgroundColor: Colors.grey[200],
       ),
-      home: VideoCallScreen(),
+      home: Scaffold(body: Center(child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: ElevatedButton(onPressed: (){ Get.to( () => VideoCallScreen() ); }, child: Text('Start Call')),
+      ))),
     );
   }
 }
