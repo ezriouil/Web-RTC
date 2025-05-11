@@ -1,6 +1,9 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:web_rtc/video_call/video_call_entity.dart';
 
 class VideoCallController extends GetxController{
@@ -17,22 +20,16 @@ class VideoCallController extends GetxController{
   };
 
   late RTCPeerConnection? peerConnection;
-
-  late MediaStream? localStream;
-  late MediaStream? remoteStream;
-
-  late final RxString currentRoomId;
-
-  late final RxBool isLoading;
-  late final RxBool isJoined;
-
-  late final RxBool isWantedToClose;
-  late final RxBool isMeTheCaller;
-
-  //late final RxBool isAlreadyCreated;
-
   late final Rx<RTCVideoRenderer?> localRenderer;
   late final Rx<RTCVideoRenderer?> remoteRenderer;
+  late MediaStream? localStream;
+  late MediaStream? remoteStream;
+  late final RxBool isInitialising;
+  late final RxBool isJoined;
+  late final RxString currentRoomId;
+
+  final GetStorage _storage = GetStorage();
+  String? uid;
 
   @override
   void onInit() {
@@ -46,12 +43,8 @@ class VideoCallController extends GetxController{
     localStream = null;
     remoteStream = null;
 
-    isLoading = true.obs;
+    isInitialising = true.obs;
     isJoined = false.obs;
-
-    isMeTheCaller = false.obs;
-
-    isWantedToClose = false.obs;
 
     super.onInit();
     init();
@@ -60,135 +53,9 @@ class VideoCallController extends GetxController{
   void init() async {
     await localRenderer.value!.initialize();
     await remoteRenderer.value!.initialize();
-    await openUserMedia();
-    isLoading.value = false;
-    await initPeerConnection();
+    final String myUid = await _getUID();
+    uid = myUid;
     skip();
-  }
-
-  Future<void> openUserMedia() async {
-    try {
-      final MediaStream stream = await mediaDevices.getUserMedia({'video': true, 'audio': true});
-      localRenderer.value!.srcObject = stream;
-      localStream = stream;
-      remoteRenderer.value!.srcObject = await createLocalMediaStream('key');
-    } catch (_) {}
-  }
-
-  Future<void> initPeerConnection() async {
-
-    peerConnection = await createPeerConnection(_configuration);
-
-    localStream?.getTracks().forEach((track) {
-      peerConnection?.addTrack(track, localStream!);
-    });
-
-    peerConnection?.onTrack = (RTCTrackEvent event) {
-      event.streams[0].getTracks().forEach((track) {
-        localStream?.addTrack(track);
-      });
-    };
-
-  }
-
-  void registerPeerConnectionListeners() {
-
-    peerConnection?.onIceGatheringState = (RTCIceGatheringState state) {
-      switch (state) {
-        case RTCIceGatheringState.RTCIceGatheringStateNew:
-          print("============ ICE ============");
-          print("Ice Gathering State: New");
-          print("========================");
-          break;
-        case RTCIceGatheringState.RTCIceGatheringStateGathering:
-          print("============ ICE ============");
-          print("Ice Gathering State: Gathering"); // CREATE 1  // JOIN 3
-          print("========================");
-          break;
-        case RTCIceGatheringState.RTCIceGatheringStateComplete:
-          print("============ ICE ============");
-          print("Ice Gathering State: Complete"); // CREATE 3  // JOIN 5
-          print("========================");
-          break;
-      }
-    };
-
-    peerConnection?.onConnectionState = (RTCPeerConnectionState state) {
-      switch (state) {
-        case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
-          print("============ CONNECTION ============");
-          print("Connection State: Closed"); // CLOSE 1
-          print("========================");
-          break;
-        case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
-          print("============ CONNECTION ============");
-          print("Connection State: Failed");
-          print("========================");
-          break;
-        case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
-          print("============ CONNECTION ============");
-          print("Connection State: Disconnected");
-          print("========================");
-          break;
-        case RTCPeerConnectionState.RTCPeerConnectionStateNew:
-          print("============ CONNECTION ============");
-          print("Connection State: New");
-          print("========================");
-          break;
-        case RTCPeerConnectionState.RTCPeerConnectionStateConnecting:
-          print("============ CONNECTION ============");
-          print("Connection State: Connecting"); // JOIN 4
-          print("========================");
-          break;
-        case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
-          print("============ CONNECTION ============");
-          print("Connection State: Connected"); // JOIN 6
-          print("========================");
-          break;
-      }
-    };
-
-    peerConnection?.onSignalingState = (RTCSignalingState state) {
-      switch (state) {
-        case RTCSignalingState.RTCSignalingStateStable:
-          print("============ SIGNAL ============");
-          print("Signaling State: Stable"); // JOIN 2
-          print("========================");
-          break;
-        case RTCSignalingState.RTCSignalingStateHaveLocalOffer:
-          print("============ SIGNAL ============");
-          print("Signaling State: Have Local Offer"); // CREATE 2
-          print("========================");
-          break;
-        case RTCSignalingState.RTCSignalingStateHaveRemoteOffer:
-          print("============ SIGNAL ============");
-          print("Signaling State: Have Remote Offer"); // JOIN 1
-          print("========================");
-          break;
-        case RTCSignalingState.RTCSignalingStateHaveLocalPrAnswer:
-          print("============ SIGNAL ============");
-          print("Signaling State: Have Local PrAnswer");
-          print("========================");
-          break;
-        case RTCSignalingState.RTCSignalingStateHaveRemotePrAnswer:
-          print("============ SIGNAL ============");
-          print("Signaling State: Have Remote PrAnswer");
-          print("========================");
-          break;
-        case RTCSignalingState.RTCSignalingStateClosed:
-          print("============ SIGNAL ============");
-          print("Signaling State: Closed"); // CLOSE 2
-          print("========================");
-          isJoined.value = false;
-          break;
-      }
-    };
-
-    peerConnection?.onAddStream = (MediaStream stream) {
-      remoteRenderer.value!.srcObject = stream;
-      remoteStream = stream;
-    };
-
   }
 
   Future<void> createNewRoom() async {
@@ -198,11 +65,11 @@ class VideoCallController extends GetxController{
 
     final VideoCallEntity videoCallEntity = VideoCallEntity(
         id: newDoc.id,
-        callerId: 'MOHAMED-2003',
-        calleeId: 'EZRIOUIL-2003',
-        isAvailable: true,
+        callerId: uid,
+        calleeId: null,
         offer: null,
         answer: null,
+        isAvailable: true,
         callerCandidates: null,
         calleeCandidates: null
     );
@@ -210,9 +77,113 @@ class VideoCallController extends GetxController{
     try {
 
       await newDoc.set(videoCallEntity.toJson());
-      isMeTheCaller.value = true;
 
-     registerPeerConnectionListeners();
+      // ======================== OPEN MEDIA ======================== //
+      final MediaStream stream = await mediaDevices.getUserMedia({'video': true, 'audio': true});
+      localRenderer.value!.srcObject = stream;
+      localStream = stream;
+      remoteRenderer.value!.srcObject = await createLocalMediaStream('key');
+      isInitialising.value = false;
+      // ======================== OPEN MEDIA ======================== //
+
+      // ======================== PER CONNECTION ======================== //
+      peerConnection = await createPeerConnection(_configuration);
+      localStream?.getTracks().forEach((track) { peerConnection?.addTrack(track, localStream!); });
+      peerConnection?.onTrack = (RTCTrackEvent event) { event.streams[0].getTracks().forEach((track) { localStream?.addTrack(track); }); };
+      peerConnection?.onIceGatheringState = (RTCIceGatheringState state) {
+        switch (state) {
+          case RTCIceGatheringState.RTCIceGatheringStateNew:
+            printInfo(info: "============ ICE ============");
+            printInfo(info: "Ice Gathering State: New");
+            printInfo(info: "========================");
+            break;
+          case RTCIceGatheringState.RTCIceGatheringStateGathering:
+            printInfo(info: "============ ICE ============");
+            printInfo(info: "Ice Gathering State: Gathering"); // CREATE 1  // JOIN 3
+            printInfo(info: "========================");
+            break;
+          case RTCIceGatheringState.RTCIceGatheringStateComplete:
+            printInfo(info: "============ ICE ============");
+            printInfo(info: "Ice Gathering State: Complete"); // CREATE 3  // JOIN 5
+            printInfo(info: "========================");
+            break;
+        }
+      };
+      peerConnection?.onConnectionState = (RTCPeerConnectionState state) {
+        switch (state) {
+          case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
+            printInfo(info: "============ CONNECTION ============");
+            printInfo(info: "Connection State: Closed"); // CLOSE 1
+            printInfo(info: "========================");
+            hangUpTheRoom();
+            break;
+          case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
+            printInfo(info: "============ CONNECTION ============");
+            printInfo(info: "Connection State: Failed");
+            printInfo(info: "========================");
+            break;
+          case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
+            printInfo(info: "============ CONNECTION ============");
+            printInfo(info: "Connection State: Disconnected");
+            printInfo(info: "========================");
+            break;
+          case RTCPeerConnectionState.RTCPeerConnectionStateNew:
+            printInfo(info: "============ CONNECTION ============");
+            printInfo(info: "Connection State: New");
+            printInfo(info: "========================");
+            break;
+          case RTCPeerConnectionState.RTCPeerConnectionStateConnecting:
+            printInfo(info: "============ CONNECTION ============");
+            printInfo(info: "Connection State: Connecting"); // JOIN 4
+            printInfo(info: "========================");
+            break;
+          case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
+            printInfo(info: "============ CONNECTION ============");
+            printInfo(info: "Connection State: Connected"); // JOIN 6
+            printInfo(info: "========================");
+            isJoined.value = true;
+            break;
+        }
+      };
+      peerConnection?.onSignalingState = (RTCSignalingState state) {
+        switch (state) {
+          case RTCSignalingState.RTCSignalingStateStable:
+            printInfo(info: "============ SIGNAL ============");
+            printInfo(info: "Signaling State: Stable"); // JOIN 2
+            printInfo(info: "========================");
+            break;
+          case RTCSignalingState.RTCSignalingStateHaveLocalOffer:
+            printInfo(info: "============ SIGNAL ============");
+            printInfo(info: "Signaling State: Have Local Offer"); // CREATE 2
+            printInfo(info: "========================");
+            break;
+          case RTCSignalingState.RTCSignalingStateHaveRemoteOffer:
+            printInfo(info: "============ SIGNAL ============");
+            printInfo(info: "Signaling State: Have Remote Offer"); // JOIN 1
+            printInfo(info: "========================");
+            break;
+          case RTCSignalingState.RTCSignalingStateHaveLocalPrAnswer:
+            printInfo(info: "============ SIGNAL ============");
+            printInfo(info: "Signaling State: Have Local PrAnswer");
+            printInfo(info: "========================");
+            break;
+          case RTCSignalingState.RTCSignalingStateHaveRemotePrAnswer:
+            printInfo(info: "============ SIGNAL ============");
+            printInfo(info: "Signaling State: Have Remote PrAnswer");
+            printInfo(info: "========================");
+            break;
+          case RTCSignalingState.RTCSignalingStateClosed:
+            printInfo(info: "============ SIGNAL ============");
+            printInfo(info: "Signaling State: Closed"); // CLOSE 2
+            printInfo(info: "========================");
+            break;
+        }
+      };
+      peerConnection?.onAddStream = (MediaStream stream) {
+        remoteRenderer.value!.srcObject = stream;
+        remoteStream = stream;
+      };
+      // ======================== PER CONNECTION ======================== //
 
       peerConnection?.onIceCandidate = (RTCIceCandidate? candidate) async {
         if(candidate == null) return;
@@ -229,10 +200,9 @@ class VideoCallController extends GetxController{
         if(snapshot.exists && snapshot.data() != null){
           final VideoCallEntity videoCallEntity = VideoCallEntity.fromJson(snapshot.data()!);
 
-          if (videoCallEntity.answer != null && peerConnection?.getRemoteDescription() != null) {
+          if (videoCallEntity.answer != null && peerConnection?.signalingState != RTCSignalingState.RTCSignalingStateStable) {
             final answer = RTCSessionDescription(videoCallEntity.answer, 'answer');
             await peerConnection?.setRemoteDescription(answer);
-            if(isMeTheCaller.value) isJoined.value = true;
           }
 
           if (videoCallEntity.calleeCandidates != null) {
@@ -247,12 +217,9 @@ class VideoCallController extends GetxController{
               );
             }
           }
+        }
+        else { Get.back(); }
 
-        }
-        else {
-          if(!isWantedToClose.value) skip();
-          isJoined.value = false;
-        }
       });
 
     } catch (_) {}
@@ -264,23 +231,125 @@ class VideoCallController extends GetxController{
       final doc = FirebaseFirestore.instance.collection('ROOMS').doc(currentRoomId.value);
       final callData = await doc.get();
 
-      if(!(callData.exists) && callData.data() == null) {
-        skip();
-        return;
-      }
-
       await doc.update({ 'isAvailable': false });
 
       final VideoCallEntity videoCallEntity = VideoCallEntity.fromJson(callData.data()!);
 
-      registerPeerConnectionListeners();
+      // ======================== OPEN MEDIA ======================== //
+      final MediaStream stream = await mediaDevices.getUserMedia({ 'video': true, 'audio': true });
+      localRenderer.value!.srcObject = stream;
+      localStream = stream;
+      remoteRenderer.value!.srcObject = await createLocalMediaStream('key');
+      isInitialising.value = false;
+      // ======================== OPEN MEDIA ======================== //
+
+      // ======================== PER CONNECTION ======================== //
+      peerConnection = await createPeerConnection(_configuration);
+      localStream?.getTracks().forEach((track) { peerConnection?.addTrack(track, localStream!); });
+      peerConnection?.onTrack = (RTCTrackEvent event) { event.streams[0].getTracks().forEach((track) { localStream?.addTrack(track); }); };
+      peerConnection?.onIceGatheringState = (RTCIceGatheringState state) {
+        switch (state) {
+          case RTCIceGatheringState.RTCIceGatheringStateNew:
+            printInfo(info: "============ ICE ============");
+            printInfo(info: "Ice Gathering State: New");
+            printInfo(info: "========================");
+            break;
+          case RTCIceGatheringState.RTCIceGatheringStateGathering:
+            printInfo(info: "============ ICE ============");
+            printInfo(info: "Ice Gathering State: Gathering"); // CREATE 1  // JOIN 3
+            printInfo(info: "========================");
+            break;
+          case RTCIceGatheringState.RTCIceGatheringStateComplete:
+            printInfo(info: "============ ICE ============");
+            printInfo(info: "Ice Gathering State: Complete"); // CREATE 3  // JOIN 5
+            printInfo(info: "========================");
+            break;
+        }
+      };
+      peerConnection?.onConnectionState = (RTCPeerConnectionState state) async {
+        switch (state) {
+          case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
+            printInfo(info: "============ CONNECTION ============");
+            printInfo(info: "Connection State: Closed"); // CLOSE 1
+            printInfo(info: "========================");
+            hangUpTheRoom();
+            break;
+          case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
+            printInfo(info: "============ CONNECTION ============");
+            printInfo(info: "Connection State: Failed");
+            printInfo(info: "========================");
+            break;
+          case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
+            printInfo(info: "============ CONNECTION ============");
+            printInfo(info: "Connection State: Disconnected");
+            printInfo(info: "========================");
+            break;
+          case RTCPeerConnectionState.RTCPeerConnectionStateNew:
+            printInfo(info: "============ CONNECTION ============");
+            printInfo(info: "Connection State: New");
+            printInfo(info: "========================");
+            break;
+          case RTCPeerConnectionState.RTCPeerConnectionStateConnecting:
+            printInfo(info: "============ CONNECTION ============");
+            printInfo(info: "Connection State: Connecting"); // JOIN 4
+            printInfo(info: "========================");
+            break;
+          case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
+            printInfo(info: "============ CONNECTION ============");
+            printInfo(info: "Connection State: Connected"); // JOIN 6
+            printInfo(info: "========================");
+            isJoined.value = true;
+            break;
+        }
+      };
+      peerConnection?.onSignalingState = (RTCSignalingState state) {
+        switch (state) {
+          case RTCSignalingState.RTCSignalingStateStable:
+            printInfo(info: "============ SIGNAL ============");
+            printInfo(info: "Signaling State: Stable"); // JOIN 2
+            printInfo(info: "========================");
+            break;
+          case RTCSignalingState.RTCSignalingStateHaveLocalOffer:
+            printInfo(info: "============ SIGNAL ============");
+            printInfo(info: "Signaling State: Have Local Offer"); // CREATE 2
+            printInfo(info: "========================");
+            break;
+          case RTCSignalingState.RTCSignalingStateHaveRemoteOffer:
+            printInfo(info: "============ SIGNAL ============");
+            printInfo(info: "Signaling State: Have Remote Offer"); // JOIN 1
+            printInfo(info: "========================");
+            break;
+          case RTCSignalingState.RTCSignalingStateHaveLocalPrAnswer:
+            printInfo(info: "============ SIGNAL ============");
+            printInfo(info: "Signaling State: Have Local PrAnswer");
+            printInfo(info: "========================");
+            break;
+          case RTCSignalingState.RTCSignalingStateHaveRemotePrAnswer:
+            printInfo(info: "============ SIGNAL ============");
+            printInfo(info: "Signaling State: Have Remote PrAnswer");
+            printInfo(info: "========================");
+            break;
+          case RTCSignalingState.RTCSignalingStateClosed:
+            printInfo(info: "============ SIGNAL ============");
+            printInfo(info: "Signaling State: Closed"); // CLOSE 2
+            printInfo(info: "========================");
+            break;
+        }
+      };
+      peerConnection?.onAddStream = (MediaStream stream) {
+        remoteRenderer.value!.srcObject = stream;
+        remoteStream = stream;
+      };
+      // ======================== PER CONNECTION ======================== //
 
       peerConnection?.onIceCandidate = (RTCIceCandidate? candidate) async {
         if (candidate == null) return ;
         await doc.update({ 'calleeCandidates': FieldValue.arrayUnion([ candidate.toMap() ]) });
       };
 
-      await peerConnection?.setRemoteDescription(RTCSessionDescription(videoCallEntity.offer, 'offer'));
+      if (peerConnection?.signalingState != RTCSignalingState.RTCSignalingStateStable) {
+        await peerConnection?.setRemoteDescription(RTCSessionDescription(videoCallEntity.offer, 'offer'));
+      }
 
       final answer = await peerConnection!.createAnswer();
 
@@ -290,7 +359,9 @@ class VideoCallController extends GetxController{
 
       doc.snapshots().listen((snapshot) async {
         if(snapshot.exists && snapshot.data() != null){
+
           final VideoCallEntity videoCallEntity = VideoCallEntity.fromJson(snapshot.data()!);
+
           if (videoCallEntity.callerCandidates != null) {
             List<Map<String, dynamic>> callerCandidates = videoCallEntity.callerCandidates!;
             for (Map<String, dynamic> item in callerCandidates) {
@@ -302,13 +373,9 @@ class VideoCallController extends GetxController{
                 ),
               );
             }
-            if(!isMeTheCaller.value) isJoined.value = true;
           }
         }
-        else {
-          if(!isWantedToClose.value) skip();
-          isJoined.value = false;
-        }
+        else { Get.back(); }
       });
 
     } catch (_) {}
@@ -317,71 +384,96 @@ class VideoCallController extends GetxController{
   Future<void> skip() async {
 
     isJoined.value = false;
-    isMeTheCaller.value = false;
 
-    try{
-      if(currentRoomId.value != "") {
-        await FirebaseFirestore.instance.collection('ROOMS').doc(currentRoomId.value).delete();
-        currentRoomId.value = "";
-      }
+    final QuerySnapshot<Map<String, dynamic>> roomAlreadyExist = await FirebaseFirestore.instance
+        .collection('ROOMS')
+        .where('isAvailable', isEqualTo: true)
+        .where('callerId', isNotEqualTo: uid)
+        .limit(1)
+        .get();
+
+
+    if(roomAlreadyExist.size > 0){
+      final VideoCallEntity videoCallEntity = VideoCallEntity.fromJson(roomAlreadyExist.docs.first.data());
+      currentRoomId.value = videoCallEntity.id!;
+      await joinTheRoom();
+      return;
     }
-    catch (_) {}
-
-    await Future.delayed(Duration(milliseconds: 300));
-
-    try{
-
-      final QuerySnapshot<Map<String, dynamic>> roomAlreadyExist = await FirebaseFirestore.instance.collection('ROOMS').where('isAvailable', isEqualTo: true).limit(1).get();
-
-      if(roomAlreadyExist.size > 0){
-        final VideoCallEntity videoCallEntity = VideoCallEntity.fromJson(roomAlreadyExist.docs.first.data());
-        currentRoomId.value = videoCallEntity.id!;
-        joinTheRoom();
-      }
-      else {
-        await Future.delayed(Duration(milliseconds: 300));
-        createNewRoom();
-      }
-    }
-    catch (_) {}
+    await createNewRoom();
 
   }
 
   Future<void> hangUpTheRoom() async {
     try {
 
-      isWantedToClose.value = true;
-      if(!isJoined.value) isJoined.value = false;
 
       if(currentRoomId.value != "") {
         await FirebaseFirestore.instance.collection('ROOMS').doc(currentRoomId.value).delete();
         currentRoomId.value = "";
-      }
-
-      if (remoteStream != null) {
-        for (final track in remoteStream!.getTracks()) { track.stop(); track.dispose(); }
-        remoteStream!.dispose();
-        remoteStream = null;
-      }
-
-      if (peerConnection != null) {
-        peerConnection!.close();
-        peerConnection = null;
+        printInfo(info: "--- ROOM ID REMOVED ---");
       }
 
       Get.back();
+      return;
+
+      if(!isJoined.value) isJoined.value = false;
+
+      if (remoteStream != null) {
+        for (final track in remoteStream!.getTracks()) { await track.stop(); await track.dispose(); }
+        await remoteStream!.dispose();
+        remoteStream = null;
+        printInfo(info: "--- REMOTE STREAM REMOVED ---");
+      }
+
+      if (localStream != null) {
+        for (final track in localStream!.getTracks()) { await track.stop(); await track.dispose(); }
+        await localStream!.dispose();
+        localStream = null;
+        printInfo(info: "--- LOCAL STREAM REMOVED ---");
+      }
+
+
+      // Dispose of the renderers
+      try {
+        localRenderer.value?.srcObject = null;
+        await localRenderer.value?.dispose();
+      } catch (_) {}
+
+      try {
+        remoteRenderer.value?.srcObject = null;
+        await remoteRenderer.value?.dispose();
+      } catch (_) {}
+
+      // Optional: Reset the renderers if you're reusing them
+      localRenderer.value = RTCVideoRenderer();
+      await localRenderer.value!.initialize();
+
+      remoteRenderer.value = RTCVideoRenderer();
+      await remoteRenderer.value!.initialize();
+
+      skip();
 
     } catch (_) {}
   }
 
   @override
   void onClose() {
+    print("=== we call onClose ===");
     peerConnection?.dispose();
     localStream?.dispose();
-    localStream?.dispose();
+    remoteStream?.dispose();
     localRenderer.value?.dispose();
     remoteRenderer.value?.dispose();
     super.onClose();
   }
 
+  Future<String> _getUID() async {
+    String? getUid = _storage.read("UID");
+    if(getUid == null){
+      final String generateRandomUid = Random().nextInt(1000).toString();
+      _storage.write("UID", generateRandomUid);
+      getUid = generateRandomUid;
+    }
+    return getUid ;
+  }
 }

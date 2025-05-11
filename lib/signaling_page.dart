@@ -35,19 +35,19 @@ class Signaling {
     peerConnection?.onIceGatheringState = (RTCIceGatheringState state) {
       // switch (state) {
       //   case RTCIceGatheringState.RTCIceGatheringStateNew:
-      //     print("============ ICE ============");
-      //     print("Ice Gathering State: New");
-      //     print("========================");
+      //     printInfo(info: "============ ICE ============");
+      //     printInfo(info: "Ice Gathering State: New");
+      //     printInfo(info: "========================");
       //     break;
       //   case RTCIceGatheringState.RTCIceGatheringStateGathering:
-      //     print("============ ICE ============");
-      //     print("Ice Gathering State: Gathering");
-      //     print("========================");
+      //     printInfo(info: "============ ICE ============");
+      //     printInfo(info: "Ice Gathering State: Gathering");
+      //     printInfo(info: "========================");
       //     break;
       //   case RTCIceGatheringState.RTCIceGatheringStateComplete:
-      //     print("============ ICE ============");
-      //     print("Ice Gathering State: Complete");
-      //     print("========================");
+      //     printInfo(info: "============ ICE ============");
+      //     printInfo(info: "Ice Gathering State: Complete");
+      //     printInfo(info: "========================");
       //     break;
       // }
     };
@@ -55,34 +55,34 @@ class Signaling {
     peerConnection?.onConnectionState = (RTCPeerConnectionState state) {
       // switch (state) {
       //   case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
-      //     print("============ CONNECTION ============");
-      //     print("Connection State: Closed");
-      //     print("========================");
+      //     printInfo(info: "============ CONNECTION ============");
+      //     printInfo(info: "Connection State: Closed");
+      //     printInfo(info: "========================");
       //     break;
       //   case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
-      //     print("============ CONNECTION ============");
-      //     print("Connection State: Failed");
-      //     print("========================");
+      //     printInfo(info: "============ CONNECTION ============");
+      //     printInfo(info: "Connection State: Failed");
+      //     printInfo(info: "========================");
       //     break;
       //   case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
-      //     print("============ CONNECTION ============");
-      //     print("Connection State: Disconnected");
-      //     print("========================");
+      //     printInfo(info: "============ CONNECTION ============");
+      //     printInfo(info: "Connection State: Disconnected");
+      //     printInfo(info: "========================");
       //     break;
       //   case RTCPeerConnectionState.RTCPeerConnectionStateNew:
-      //     print("============ CONNECTION ============");
-      //     print("Connection State: New");
-      //     print("========================");
+      //     printInfo(info: "============ CONNECTION ============");
+      //     printInfo(info: "Connection State: New");
+      //     printInfo(info: "========================");
       //     break;
       //   case RTCPeerConnectionState.RTCPeerConnectionStateConnecting:
-      //     print("============ CONNECTION ============");
-      //     print("Connection State: Connecting");
-      //     print("========================");
+      //     printInfo(info: "============ CONNECTION ============");
+      //     printInfo(info: "Connection State: Connecting");
+      //     printInfo(info: "========================");
       //     break;
       //   case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
-      //     print("============ CONNECTION ============");
-      //     print("Connection State: Connected");
-      //     print("========================");
+      //     printInfo(info: "============ CONNECTION ============");
+      //     printInfo(info: "Connection State: Connected");
+      //     printInfo(info: "========================");
       //     break;
       // }
     };
@@ -90,34 +90,34 @@ class Signaling {
     peerConnection?.onSignalingState = (RTCSignalingState state) {
       // switch (state) {
       //   case RTCSignalingState.RTCSignalingStateStable:
-      //     print("============ SIGNAL ============");
-      //     print("Signaling State: Stable");
-      //     print("========================");
+      //     printInfo(info: "============ SIGNAL ============");
+      //     printInfo(info: "Signaling State: Stable");
+      //     printInfo(info: "========================");
       //     break;
       //   case RTCSignalingState.RTCSignalingStateHaveLocalOffer:
-      //     print("============ SIGNAL ============");
-      //     print("Signaling State: Have Local Offer");
-      //     print("========================");
+      //     printInfo(info: "============ SIGNAL ============");
+      //     printInfo(info: "Signaling State: Have Local Offer");
+      //     printInfo(info: "========================");
       //     break;
       //   case RTCSignalingState.RTCSignalingStateHaveRemoteOffer:
-      //     print("============ SIGNAL ============");
-      //     print("Signaling State: Have Remote Offer");
-      //     print("========================");
+      //     printInfo(info: "============ SIGNAL ============");
+      //     printInfo(info: "Signaling State: Have Remote Offer");
+      //     printInfo(info: "========================");
       //     break;
       //   case RTCSignalingState.RTCSignalingStateHaveLocalPrAnswer:
-      //     print("============ SIGNAL ============");
-      //     print("Signaling State: Have Local PrAnswer");
-      //     print("========================");
+      //     printInfo(info: "============ SIGNAL ============");
+      //     printInfo(info: "Signaling State: Have Local PrAnswer");
+      //     printInfo(info: "========================");
       //     break;
       //   case RTCSignalingState.RTCSignalingStateHaveRemotePrAnswer:
-      //     print("============ SIGNAL ============");
-      //     print("Signaling State: Have Remote PrAnswer");
-      //     print("========================");
+      //     printInfo(info: "============ SIGNAL ============");
+      //     printInfo(info: "Signaling State: Have Remote PrAnswer");
+      //     printInfo(info: "========================");
       //     break;
       //   case RTCSignalingState.RTCSignalingStateClosed:
-      //     print("============ SIGNAL ============");
-      //     print("Signaling State: Closed");
-      //     print("========================");
+      //     printInfo(info: "============ SIGNAL ============");
+      //     printInfo(info: "Signaling State: Closed");
+      //     printInfo(info: "========================");
       //     break;
       // }
     };
