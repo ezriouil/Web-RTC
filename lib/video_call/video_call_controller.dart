@@ -20,13 +20,20 @@ class VideoCallController extends GetxController{
   };
 
   late RTCPeerConnection? peerConnection;
+
   late final Rx<RTCVideoRenderer?> localRenderer;
   late final Rx<RTCVideoRenderer?> remoteRenderer;
+
   late MediaStream? localStream;
   late MediaStream? remoteStream;
+
   late final RxBool isInitialising;
   late final RxBool isJoined;
+  late final RxBool isMeTheCaller;
+
   late final RxString currentRoomId;
+
+  late final RxBool result;
 
   final GetStorage _storage = GetStorage();
   String? uid;
@@ -45,6 +52,9 @@ class VideoCallController extends GetxController{
 
     isInitialising = true.obs;
     isJoined = false.obs;
+    isMeTheCaller = false.obs;
+
+    result = true.obs;
 
     super.onInit();
     init();
@@ -62,6 +72,7 @@ class VideoCallController extends GetxController{
 
     final newDoc = FirebaseFirestore.instance.collection('ROOMS').doc();
     currentRoomId.value = newDoc.id;
+    isMeTheCaller.value = true;
 
     final VideoCallEntity videoCallEntity = VideoCallEntity(
         id: newDoc.id,
@@ -82,7 +93,6 @@ class VideoCallController extends GetxController{
       final MediaStream stream = await mediaDevices.getUserMedia({'video': true, 'audio': true});
       localRenderer.value!.srcObject = stream;
       localStream = stream;
-      remoteRenderer.value!.srcObject = await createLocalMediaStream('key');
       isInitialising.value = false;
       // ======================== OPEN MEDIA ======================== //
 
@@ -115,7 +125,6 @@ class VideoCallController extends GetxController{
             printInfo(info: "============ CONNECTION ============");
             printInfo(info: "Connection State: Closed"); // CLOSE 1
             printInfo(info: "========================");
-            hangUpTheRoom();
             break;
           case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
             printInfo(info: "============ CONNECTION ============");
@@ -218,8 +227,10 @@ class VideoCallController extends GetxController{
             }
           }
         }
-        else { Get.back(); }
-
+        else{
+          if(result.value){ next(); }
+          else{ hangUp(); }
+        }
       });
 
     } catch (_) {}
@@ -230,6 +241,7 @@ class VideoCallController extends GetxController{
 
       final doc = FirebaseFirestore.instance.collection('ROOMS').doc(currentRoomId.value);
       final callData = await doc.get();
+      isMeTheCaller.value = false;
 
       await doc.update({ 'isAvailable': false });
 
@@ -239,7 +251,6 @@ class VideoCallController extends GetxController{
       final MediaStream stream = await mediaDevices.getUserMedia({ 'video': true, 'audio': true });
       localRenderer.value!.srcObject = stream;
       localStream = stream;
-      remoteRenderer.value!.srcObject = await createLocalMediaStream('key');
       isInitialising.value = false;
       // ======================== OPEN MEDIA ======================== //
 
@@ -272,7 +283,6 @@ class VideoCallController extends GetxController{
             printInfo(info: "============ CONNECTION ============");
             printInfo(info: "Connection State: Closed"); // CLOSE 1
             printInfo(info: "========================");
-            hangUpTheRoom();
             break;
           case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
             printInfo(info: "============ CONNECTION ============");
@@ -375,8 +385,12 @@ class VideoCallController extends GetxController{
             }
           }
         }
-        else { Get.back(); }
+        else{
+          if(result.value){ next(); }
+          else{ hangUp(); }
+        }
       });
+
 
     } catch (_) {}
   }
@@ -403,62 +417,38 @@ class VideoCallController extends GetxController{
 
   }
 
-  Future<void> hangUpTheRoom() async {
+  Future<void> next() async {
+
     try {
-
-
       if(currentRoomId.value != "") {
         await FirebaseFirestore.instance.collection('ROOMS').doc(currentRoomId.value).delete();
         currentRoomId.value = "";
         printInfo(info: "--- ROOM ID REMOVED ---");
       }
 
-      Get.back();
-      return;
+      result.value = true;
+      Get.back(result: { 'result' : true, 'isMeTheCaller' : isMeTheCaller.value });
 
-      if(!isJoined.value) isJoined.value = false;
+    } catch (_) {}
+  }
 
-      if (remoteStream != null) {
-        for (final track in remoteStream!.getTracks()) { await track.stop(); await track.dispose(); }
-        await remoteStream!.dispose();
-        remoteStream = null;
-        printInfo(info: "--- REMOTE STREAM REMOVED ---");
+  Future<void> hangUp() async {
+
+    try {
+      if(currentRoomId.value != "") {
+        await FirebaseFirestore.instance.collection('ROOMS').doc(currentRoomId.value).delete();
+        currentRoomId.value = "";
+        printInfo(info: "--- ROOM ID REMOVED ---");
       }
 
-      if (localStream != null) {
-        for (final track in localStream!.getTracks()) { await track.stop(); await track.dispose(); }
-        await localStream!.dispose();
-        localStream = null;
-        printInfo(info: "--- LOCAL STREAM REMOVED ---");
-      }
-
-
-      // Dispose of the renderers
-      try {
-        localRenderer.value?.srcObject = null;
-        await localRenderer.value?.dispose();
-      } catch (_) {}
-
-      try {
-        remoteRenderer.value?.srcObject = null;
-        await remoteRenderer.value?.dispose();
-      } catch (_) {}
-
-      // Optional: Reset the renderers if you're reusing them
-      localRenderer.value = RTCVideoRenderer();
-      await localRenderer.value!.initialize();
-
-      remoteRenderer.value = RTCVideoRenderer();
-      await remoteRenderer.value!.initialize();
-
-      skip();
+      result.value = false;
+      Get.back(result: { 'result' : false, 'isMeTheCaller' : isMeTheCaller.value });
 
     } catch (_) {}
   }
 
   @override
   void onClose() {
-    print("=== we call onClose ===");
     peerConnection?.dispose();
     localStream?.dispose();
     remoteStream?.dispose();
@@ -476,4 +466,5 @@ class VideoCallController extends GetxController{
     }
     return getUid ;
   }
+  
 }

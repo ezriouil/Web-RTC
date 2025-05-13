@@ -7,6 +7,9 @@ import 'package:web_rtc/video_call/video_call_screen.dart';
 
 import 'firebase_options.dart';
 
+// adb pair 192.168.3.71:
+// adb connect 192.168.3.71:
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -38,7 +41,34 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(child: ElevatedButton(onPressed: (){ Get.to(() => VideoCallScreen()); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: Text("New Call", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
+      body: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Center(
+            child: ElevatedButton(
+                onPressed: () async {
+                  while (true) {
+                    Map<String, dynamic>? isBack = await Get.to(() => VideoCallScreen());
+                    print('=====');
+                    print(isBack.toString());
+                    print('=====');
+                    if(isBack == null) break;
+                    if(isBack['result'] == false) break;
+                    if(isBack['isMeTheCaller']!) { await Future.delayed(Duration(milliseconds: 3000)); }
+                    else { await Future.delayed(Duration(milliseconds: 2000)); }
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  spacing: 12.0,
+                  children: [
+                    Icon(Icons.video_call_outlined, color: Colors.white, size: 20),
+                    Text("New Call", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ],
+                )
+            )
+        ),
+      ),
     );
   }
 }

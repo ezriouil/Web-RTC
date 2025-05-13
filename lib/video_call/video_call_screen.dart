@@ -12,12 +12,12 @@ class VideoCallScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         leading: InkWell(
-              onTap: () { controller.hangUpTheRoom(); },
+              onTap: () { controller.hangUp(); },
               child: Icon(Icons.arrow_circle_left_outlined, color: Colors.black, size: 30.0)
           ),
         actions: [
           InkWell(
-              onTap: () { controller.hangUpTheRoom(); },
+              onTap: () { controller.next(); },
               child: Icon(Icons.arrow_circle_right_outlined, color: Colors.black, size: 30.0)
           ),
           SizedBox(width: 12.0)
