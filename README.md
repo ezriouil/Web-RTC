@@ -1,16 +1,23 @@
-# web_rtc
 
-A new Flutter project.
+---
 
-## Getting Started
+## 🚀 Getting Started
 
-This project is a starting point for a Flutter application.
+### Prerequisites
 
-A few resources to get you started if this is your first Flutter project:
+- [Flutter](https://flutter.dev) SDK ^3.6.1 or higher
+- [Firebase](https://firebase.google.com) project
+- Android Studio / Xcode (for mobile)
+- Chrome (for web testing)
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### Installation
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+# Clone the repository
+git clone https://github.com/your-username/web_rtc.git
+cd web_rtc
+
+# Install dependencies
+flutter pub get
+
+# Run the app
+flutter run
